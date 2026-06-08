@@ -1,22 +1,27 @@
 package com.salespipeline.sales_pipeline.util;
 
 import com.salespipeline.sales_pipeline.model.EmailDraft;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLOutput;
 import java.util.Arrays;
-import java.util.Scanner;
+import java.io.BufferedReader;
 
 @Component
 public class EmailComposer {
 
+    @Value("${pipeline.email.subject}")
+    private String defaultSubject;
+
     private static final String TEMPLATE_FILE = "email-template.txt";
 
-    public EmailDraft getEmailDraft(Scanner scanner) throws IOException {
+    //Changed Scanner to BufferedReader
+    public EmailDraft getEmailDraft(BufferedReader reader) throws IOException {
         Path path = Path.of(TEMPLATE_FILE);
 
-        // Create default template if none exists
         if (!Files.exists(path)) {
             createDefaultTemplate(path);
         }
@@ -27,16 +32,20 @@ public class EmailComposer {
         System.out.println("3. Edit subject line only");
         System.out.print("Choose (1/2/3): ");
 
-        String choice = scanner.nextLine().trim();
+        String choice = reader.readLine();   // readLine() not nextLine()
 
+        if(choice == null){
+            System.out.println("No input detected - loading template automatically");
+            return loadFromFile(path);
+        }
+        choice = choice.trim();
         return switch (choice) {
-            case "2" -> writeNewMessage(scanner, path);
-            case "3" -> editSubjectOnly(scanner, path);
-            default  -> loadFromFile(path);   // option 1 or anything else
+            case "2" -> writeNewMessage(reader, path);
+            case "3" -> editSubjectOnly(reader, path);
+            default  -> loadFromFile(path);
         };
     }
 
-    // Option 1 — load saved template
     private EmailDraft loadFromFile(Path path) throws IOException {
         String content = Files.readString(path);
         String subject = extractSubject(content);
@@ -45,19 +54,18 @@ public class EmailComposer {
         return new EmailDraft(subject, body);
     }
 
-    // Option 2 — user types new message
-    private EmailDraft writeNewMessage(Scanner scanner, Path path) throws IOException {
+    private EmailDraft writeNewMessage(BufferedReader reader, Path path)
+            throws IOException {
         System.out.print("\nSubject: ");
-        String subject = scanner.nextLine().trim();
+        String subject = reader.readLine().trim();
 
         System.out.println("Body (type END on a new line when done):");
         StringBuilder body = new StringBuilder();
         String line;
-        while (!(line = scanner.nextLine()).equals("END")) {
+        while (!(line = reader.readLine()).equals("END")) {
             body.append(line).append("\n");
         }
 
-        // Save for next run
         String full = "SUBJECT: " + subject + "\n\n" + body;
         Files.writeString(path, full);
         System.out.println("Saved to " + TEMPLATE_FILE + " for future runs");
@@ -65,49 +73,63 @@ public class EmailComposer {
         return new EmailDraft(subject, body.toString());
     }
 
-    // Option 3 — only change subject, keep existing body
-    private EmailDraft editSubjectOnly(Scanner scanner, Path path) throws IOException {
+    private EmailDraft editSubjectOnly(BufferedReader reader, Path path)
+            throws IOException {
         String content = Files.readString(path);
         System.out.print("\nNew Subject: ");
-        String newSubject = scanner.nextLine().trim();
+        String newSubject = reader.readLine().trim();
         String body = extractBody(content);
         System.out.println("Subject updated, body kept from template");
         return new EmailDraft(newSubject, body);
     }
 
-    // Pull subject line out of template file
     private String extractSubject(String content) {
         return Arrays.stream(content.split("\n"))
                 .filter(l -> l.startsWith("SUBJECT:"))
                 .map(l -> l.replace("SUBJECT:", "").trim())
                 .findFirst()
-                .orElse("Quick intro from us");
+                .orElse(defaultSubject);
     }
 
-    // Pull body out of template file (everything after first blank line)
     private String extractBody(String content) {
         int idx = content.indexOf("\n\n");
         return idx != -1 ? content.substring(idx).trim() : content;
     }
 
-    // Creates a default template file on first run
     private void createDefaultTemplate(Path path) throws IOException {
         String template = """
-                SUBJECT: Quick intro — thought this might be relevant
+                SUBJECT: """ + defaultSubject + """
+
 
                 Hi {firstName},
 
-                I came across {companyName} and wanted to reach out.
+                I hope this message finds you well.
 
-                We help teams like yours with [your value prop here].
+                My name is [Your Name], and I am reaching out from [Your Company].
+                I came across {companyName} and was genuinely impressed by the work
+                your team is doing in the industry.
 
-                Worth a quick 15-min call this week?
+                We specialize in [your value proposition], and I believe there could
+                be some interesting areas where our work aligns with what you are
+                building at {companyName}.
 
-                Best,
+                Would you be open to a short 15-minute call at your convenience
+                to explore if there is a potential fit?
+
+                I look forward to hearing from you.
+
+                Warm regards,
                 [Your Name]
+                [Your Title]
+                [Your Company]
+
+                ---
+                This outreach was initiated through an automated prospecting pipeline.
+                If you would prefer not to receive further emails, please reply with
+                Unsubscribe and you will be removed from our list immediately.
                 """;
         Files.writeString(path, template);
-        System.out.println("No template found — created " + TEMPLATE_FILE);
-        System.out.println("   Edit it or write a new message when prompted.");
+        System.out.println("No template found - created " + TEMPLATE_FILE);
+        System.out.println("Edit it or write a new message when prompted.");
     }
 }

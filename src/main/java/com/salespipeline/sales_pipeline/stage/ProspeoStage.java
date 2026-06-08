@@ -27,14 +27,18 @@ public class ProspeoStage {
 
         for (Company company : companies) {
             try {
+                Thread.sleep(1000);
+
                 List<Contact> contacts = fetchContactsForCompany(company);
                 allContacts.addAll(contacts);
                 System.out.println("Found " + contacts.size()
                         + " contacts at: " + company.getDomain());
 
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             } catch (Exception e) {
                 System.out.println("Failed to fetch contacts for: "
-                        + company.getDomain() + " — " + e.getMessage());
+                        + company.getDomain() + " - " + e.getMessage());
             }
         }
 
@@ -42,59 +46,151 @@ public class ProspeoStage {
     }
 
     private List<Contact> fetchContactsForCompany(Company company) {
-        String url = "https://api.prospeo.io/v1/domain-search";
+        String url = "https://api.prospeo.io/search-person";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-KEY", apiKey);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> filters = Map.of(
+                "person_seniority", Map.of(
+                        "include", List.of(
+                                "Founder/Owner",
+                                "C-Suite",
+                                "Vice President",
+                                "Director"
+                        )
+                ),
+                "company", Map.of(
+                        "websites", Map.of(
+                                "include", List.of(company.getDomain())
+                        )
+                ),
+                "max_person_per_company", 5
+        );
+
+        Map<String, Object> body = Map.of(
+                "filters", filters,
+                "page", 1
+        );
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
+        try {
+            Map response = restTemplate.postForObject(url, request, Map.class);
+            List<Contact> contacts = new ArrayList<>();
+
+            if (response == null) return contacts;
+
+            if (Boolean.TRUE.equals(response.get("error"))) {
+                System.out.println("Prospeo error for: " + company.getDomain()
+                        + " - " + response.get("error_code"));
+                return contacts;
+            }
+
+            List<Map<String, Object>> results =
+                    (List<Map<String, Object>>) response.get("results");
+
+            if (results == null || results.isEmpty()) return contacts;
+
+            for (Map<String, Object> result : results) {
+                Map<String, Object> person =
+                        (Map<String, Object>) result.get("person");
+
+                if (person == null) continue;
+
+                String linkedinUrl = (String) person.get("linkedin_url");
+
+                Contact contact = new Contact();
+                contact.setFirstName((String) person.get("first_name"));
+                contact.setLastName((String) person.get("last_name"));
+                contact.setTitle(person.get("current_job_title") != null ?
+                        (String) person.get("current_job_title") : "");
+                contact.setCompanyDomain(company.getDomain());
+                contact.setLinkedinUrl(linkedinUrl);
+
+                // Get email from Prospeo response
+                Map<String, Object> emailObj =
+                        (Map<String, Object>) person.get("email");
+
+                if (emailObj != null
+                        && emailObj.get("email") != null
+                        && !emailObj.get("email").toString().contains("*")) {
+                    //Full email available directly
+                    contact.setEmail((String) emailObj.get("email"));
+                    System.out.println("Email from Prospeo: "
+                            + contact.getFirstName()
+                            + " -> " + contact.getEmail());
+
+                } else if (linkedinUrl != null && !linkedinUrl.isEmpty()) {
+                    //Email masked — reveal via LinkedIn finder
+                    System.out.println("Revealing email for: "
+                            + contact.getFirstName() + "...");
+                    String revealedEmail = revealEmailFromProspeo(linkedinUrl);
+                    if (revealedEmail != null) {
+                        contact.setEmail(revealedEmail);
+                        System.out.println("Revealed: "
+                                + contact.getFirstName()
+                                + " -> " + revealedEmail);
+                    }
+                }
+
+                contacts.add(contact);
+            }
+
+            return contacts;
+
+        } catch (Exception e) {
+            System.out.println("Prospeo API error: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private String revealEmailFromProspeo(String linkedinUrl) {
+        String url = "https://api.prospeo.io/enrich-person";
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-KEY", apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> body = Map.of(
-                "domain", company.getDomain(),
-                "limit",  10
+                "only_verified_email", true,
+                "data", Map.of(
+                        "linkedin_url", linkedinUrl
+                )
         );
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-        Map response = restTemplate.postForObject(url, request, Map.class);
 
-        List<Contact> contacts = new ArrayList<>();
+        try {
+            Map response = restTemplate.postForObject(url, request, Map.class);
 
-        if (response == null || !response.containsKey("response")) {
-            return contacts;
-        }
+            if (response == null) return null;
 
-        // Parse each person from response
-        List<Map<String, Object>> people =
-                (List<Map<String, Object>>) response.get("response");
-
-        for (Map<String, Object> person : people) {
-            String title = (String) person.get("job_title");
-
-            // Only keep C-suite and VP level
-            if (isDecisionMaker(title)) {
-                Contact contact = new Contact();
-                contact.setFirstName((String) person.get("first_name"));
-                contact.setLastName((String) person.get("last_name"));
-                contact.setTitle(title);
-                contact.setCompanyDomain(company.getDomain());
-                contact.setLinkedinUrl((String) person.get("linkedin_url"));
-                contacts.add(contact);
+            if (Boolean.TRUE.equals(response.get("error"))) {
+                System.out.println("Reveal error: "
+                        + response.get("error_code"));
+                return null;
             }
+
+            Map<String, Object> person =
+                    (Map<String, Object>) response.get("person");
+
+            if (person == null) return null;
+
+            Map<String, Object> emailObj =
+                    (Map<String, Object>) person.get("email");
+
+            if (emailObj != null
+                    && emailObj.get("email") != null
+                    && !emailObj.get("email").toString().contains("*")) {
+                return (String) emailObj.get("email");
+            }
+
+        } catch (Exception e) {
+            System.out.println("Prospeo enrich error: " + e.getMessage());
         }
 
-        return contacts;
-    }
-
-    // Only target decision makers
-    private boolean isDecisionMaker(String title) {
-        if (title == null) return false;
-        String t = title.toLowerCase();
-        return t.contains("ceo")
-                || t.contains("cto")
-                || t.contains("coo")
-                || t.contains("cfo")
-                || t.contains("vp")
-                || t.contains("vice president")
-                || t.contains("founder")
-                || t.contains("director");
+        return null;
     }
 }

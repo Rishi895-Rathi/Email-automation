@@ -14,7 +14,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import java.util.List;
-import java.util.Scanner;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 @SpringBootApplication
 public class SalesPipelineApplication implements CommandLineRunner {
@@ -23,7 +24,7 @@ public class SalesPipelineApplication implements CommandLineRunner {
 	@Autowired private ProspeoStage prospeoStage;
 	@Autowired private EazyreachStage eazyreachStage;
 	@Autowired private BrevoStage brevoStage;
-	@Autowired private EmailComposer emailComposer;        // ← added
+	@Autowired private EmailComposer emailComposer;
 	@Autowired private SafetyCheckpoint safetyCheckpoint;
 
 	public static void main(String[] args) {
@@ -33,38 +34,42 @@ public class SalesPipelineApplication implements CommandLineRunner {
 	@Override
 	public void run(String... args) throws Exception {
 		if (args.length == 0) {
-			System.out.println("Usage: ./gradlew bootRun --args='stripe.com'");
+			System.out.println("Usage: java -jar pipeline.jar shopify.com");
 			return;
 		}
 
-		Scanner scanner = new Scanner(System.in);          // ← added
+		BufferedReader reader = new BufferedReader(
+				new InputStreamReader(System.in));
+
 		String seedDomain = args[0];
 		System.out.println("Starting pipeline for seed domain: " + seedDomain);
 
-		// Stage 1 — Lookalike companies
+		// Stage 1
 		System.out.println("\n[Stage 1] Expanding via Ocean.io...");
 		List<Company> companies = oceanStage.expand(seedDomain);
 		System.out.println("Found " + companies.size() + " lookalike companies");
 
-		// Stage 2 — Decision makers
+		// Stage 2
 		System.out.println("\n[Stage 2] Fetching decision-makers via Prospeo...");
 		List<Contact> contacts = prospeoStage.getDecisionMakers(companies);
 		System.out.println("Found " + contacts.size() + " contacts");
 
-		// Stage 3 — Resolve emails
-		System.out.println("\n[Stage 3] Resolving emails via Eazyreach...");
-		List<Contact> contactsWithEmails = eazyreachStage.resolveEmails(contacts);
-		System.out.println("Verified " + contactsWithEmails.size() + " emails");
+		// Stage 3
+		System.out.println("\n[Stage 3] Filtering verified emails...");
+		List<Contact> verifiedContacts = eazyreachStage.resolveEmails(contacts);
+		System.out.println("Verified " + verifiedContacts.size() + " emails"); // ✅
 
-		// User writes/edits email message
-		EmailDraft draft = emailComposer.getEmailDraft(scanner); // ← added
+		// Email Composer
+		EmailDraft draft = emailComposer.getEmailDraft(reader);
 
 		// Safety Checkpoint
-		safetyCheckpoint.confirm(contactsWithEmails, draft);     // ← added draft
+		safetyCheckpoint.confirm(verifiedContacts, draft, reader);              // ✅
 
-		// Stage 4 — Send emails
+		// Stage 4
 		System.out.println("\n[Stage 4] Sending outreach via Brevo...");
-		brevoStage.sendOutreach(contactsWithEmails, draft);      // ← added draft
+		brevoStage.sendOutreach(verifiedContacts, draft);                       // ✅
 		System.out.println("\nPipeline complete!");
+
+		reader.close();
 	}
 }
