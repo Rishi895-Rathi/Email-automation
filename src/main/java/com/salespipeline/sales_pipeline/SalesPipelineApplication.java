@@ -5,7 +5,7 @@ import com.salespipeline.sales_pipeline.model.Contact;
 import com.salespipeline.sales_pipeline.model.EmailDraft;
 import com.salespipeline.sales_pipeline.stage.OceanStage;
 import com.salespipeline.sales_pipeline.stage.ProspeoStage;
-import com.salespipeline.sales_pipeline.stage.EazyreachStage;
+import com.salespipeline.sales_pipeline.stage.ZeroBounceStage;
 import com.salespipeline.sales_pipeline.stage.BrevoStage;
 import com.salespipeline.sales_pipeline.util.EmailComposer;
 import com.salespipeline.sales_pipeline.util.SafetyCheckpoint;
@@ -22,7 +22,7 @@ public class SalesPipelineApplication implements CommandLineRunner {
 
 	@Autowired private OceanStage oceanStage;
 	@Autowired private ProspeoStage prospeoStage;
-	@Autowired private EazyreachStage eazyreachStage;
+	@Autowired private ZeroBounceStage eazyreachStage;
 	@Autowired private BrevoStage brevoStage;
 	@Autowired private EmailComposer emailComposer;
 	@Autowired private SafetyCheckpoint safetyCheckpoint;
