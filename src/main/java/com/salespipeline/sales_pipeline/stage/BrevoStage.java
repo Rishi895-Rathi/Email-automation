@@ -29,6 +29,9 @@ public class BrevoStage {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private com.salespipeline.sales_pipeline.util.HistoryManager historyManager;
+
     public void sendOutreach(List<Contact> contacts, EmailDraft draft) {
         String url = "https://api.brevo.com/v3/smtp/email";
 
@@ -67,6 +70,7 @@ public class BrevoStage {
                 restTemplate.postForEntity(url, request, String.class);
 
                 System.out.println("Sent to: " + contact.getEmail());
+                historyManager.recordContacted(contact.getEmail());
                 sentCount++;
 
             } catch (HttpClientErrorException e) {

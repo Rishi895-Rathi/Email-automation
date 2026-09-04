@@ -26,6 +26,7 @@ public class SalesPipelineApplication implements CommandLineRunner {
 	@Autowired private BrevoStage brevoStage;
 	@Autowired private EmailComposer emailComposer;
 	@Autowired private SafetyCheckpoint safetyCheckpoint;
+	@Autowired private com.salespipeline.sales_pipeline.util.HistoryManager historyManager;
 
 	public static void main(String[] args) {
 		SpringApplication.run(SalesPipelineApplication.class, args);
@@ -59,15 +60,25 @@ public class SalesPipelineApplication implements CommandLineRunner {
 		List<Contact> verifiedContacts = eazyreachStage.resolveEmails(contacts);
 		System.out.println("Verified " + verifiedContacts.size() + " emails"); // ✅
 
+		System.out.println("\n[Stage 3.5] Filtering out previously contacted...");
+		List<Contact> newContacts = historyManager.filterOutAlreadyContacted(verifiedContacts);
+		System.out.println("New contacts to email: " + newContacts.size());
+
+		if (newContacts.isEmpty()) {
+			System.out.println("No new contacts to email. Pipeline complete!");
+			reader.close();
+			return;
+		}
+
 		// Email Composer
 		EmailDraft draft = emailComposer.getEmailDraft(reader);
 
 		// Safety Checkpoint
-		safetyCheckpoint.confirm(verifiedContacts, draft, reader);              // ✅
+		safetyCheckpoint.confirm(newContacts, draft, reader);              // ✅
 
 		// Stage 4
 		System.out.println("\n[Stage 4] Sending outreach via Brevo...");
-		brevoStage.sendOutreach(verifiedContacts, draft);                       // ✅
+		brevoStage.sendOutreach(newContacts, draft);                       // ✅
 		System.out.println("\nPipeline complete!");
 
 		reader.close();
