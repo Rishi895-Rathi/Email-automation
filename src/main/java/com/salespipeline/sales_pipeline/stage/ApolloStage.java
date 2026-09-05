@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -34,16 +33,8 @@ public class ApolloStage {
         return headers;
     }
 
-    public List<Company> expand(String seedDomain)
+    public List<Company> expand(String seedDomain, String seedIndustry)
     {
-        String seedIndustry = fetchSeedIndustry(seedDomain);
-
-        if (seedIndustry == null)
-        {
-            System.out.println("Could not resolve seed company industry from Apollo");
-            return List.of();
-        }
-
         String url = "https://api.apollo.io/v1/mixed_companies/search";
 
         Map<String, Object> body = Map.of(
@@ -97,37 +88,6 @@ public class ApolloStage {
         {
             System.out.println("Apollo organization search error: " + e.getMessage());
             return List.of();
-        }
-    }
-
-    private String fetchSeedIndustry(String seedDomain)
-    {
-        String url = "https://api.apollo.io/v1/organizations/enrich?domain=" + seedDomain;
-
-        HttpEntity<Void> request = new HttpEntity<>(headers());
-
-        try
-        {
-            Map response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class).getBody();
-
-            if (response == null)
-            {
-                return null;
-            }
-
-            Map<String, Object> organization = (Map<String, Object>) response.get("organization");
-
-            if (organization == null)
-            {
-                return null;
-            }
-
-            return (String) organization.get("industry");
-        }
-        catch (Exception e)
-        {
-            System.out.println("Apollo enrich error: " + e.getMessage());
-            return null;
         }
     }
 
@@ -195,15 +155,7 @@ public class ApolloStage {
                 contact.setTitle(person.get("title") != null ? (String) person.get("title") : "");
                 contact.setCompanyDomain(company.getDomain());
                 contact.setLinkedinUrl((String) person.get("linkedin_url"));
-
-                String personId = (String) person.get("id");
-                String revealedEmail = revealEmail(personId);
-
-                if (revealedEmail != null)
-                {
-                    contact.setEmail(revealedEmail);
-                    System.out.println("Revealed: " + contact.getFirstName() + " -> " + revealedEmail);
-                }
+                contact.setEmail(null);
 
                 contacts.add(contact);
             }
@@ -215,52 +167,5 @@ public class ApolloStage {
             System.out.println("Apollo people search error: " + e.getMessage());
             return new ArrayList<>();
         }
-    }
-
-    private String revealEmail(String personId)
-    {
-        if (personId == null)
-        {
-            return null;
-        }
-
-        String url = "https://api.apollo.io/v1/people/match";
-
-        Map<String, Object> body = Map.of(
-                "id", personId,
-                "reveal_personal_emails", true
-        );
-
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers());
-
-        try
-        {
-            Map response = restTemplate.postForObject(url, request, Map.class);
-
-            if (response == null)
-            {
-                return null;
-            }
-
-            Map<String, Object> person = (Map<String, Object>) response.get("person");
-
-            if (person == null)
-            {
-                return null;
-            }
-
-            Object email = person.get("email");
-
-            if (email != null && !email.toString().contains("email_not_unlocked"))
-            {
-                return email.toString();
-            }
-        }
-        catch (Exception e)
-        {
-            System.out.println("Apollo match/reveal error: " + e.getMessage());
-        }
-
-        return null;
     }
 }
