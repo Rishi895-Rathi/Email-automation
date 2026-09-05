@@ -2,6 +2,7 @@ package com.salespipeline.sales_pipeline.stage;
 
 import com.salespipeline.sales_pipeline.model.Contact;
 import com.salespipeline.sales_pipeline.model.EmailDraft;
+import com.salespipeline.sales_pipeline.util.HistoryManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -36,7 +37,7 @@ public class GmailStage {
     private RestTemplate restTemplate;
 
     @Autowired
-    private com.salespipeline.sales_pipeline.util.HistoryManager historyManager;
+    private HistoryManager historyManager;
 
     public void sendOutreach(List<Contact> contacts, EmailDraft draft)
     {

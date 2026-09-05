@@ -6,7 +6,7 @@ import com.salespipeline.sales_pipeline.model.EmailDraft;
 import com.salespipeline.sales_pipeline.stage.ApolloStage;
 import com.salespipeline.sales_pipeline.stage.HunterEmailFinderStage;
 import com.salespipeline.sales_pipeline.stage.ZeroBounceStage;
-import com.salespipeline.sales_pipeline.stage.BrevoStage;
+import com.salespipeline.sales_pipeline.stage.GmailStage;
 import com.salespipeline.sales_pipeline.util.EmailComposer;
 import com.salespipeline.sales_pipeline.util.SafetyCheckpoint;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +23,7 @@ public class SalesPipelineApplication implements CommandLineRunner {
 	@Autowired private ApolloStage apolloStage;
 	@Autowired private HunterEmailFinderStage hunterEmailFinderStage;
 	@Autowired private ZeroBounceStage zeroBounceStage;
-	@Autowired private BrevoStage brevoStage;
+	@Autowired private GmailStage gmailStage;
 	@Autowired private EmailComposer emailComposer;
 	@Autowired private SafetyCheckpoint safetyCheckpoint;
 	@Autowired private com.salespipeline.sales_pipeline.util.HistoryManager historyManager;
@@ -84,8 +84,8 @@ public class SalesPipelineApplication implements CommandLineRunner {
 		safetyCheckpoint.confirm(newContacts, draft, reader);
 
 		// Stage 4
-		System.out.println("\n[Stage 4] Sending outreach via Brevo...");
-		brevoStage.sendOutreach(newContacts, draft);
+		System.out.println("\n[Stage 4] Sending outreach via Gmail...");
+		gmailStage.sendOutreach(newContacts, draft);
 		System.out.println("\nPipeline complete!");
 
 		reader.close();
