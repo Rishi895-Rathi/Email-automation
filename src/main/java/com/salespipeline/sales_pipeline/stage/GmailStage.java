@@ -56,6 +56,8 @@ public class GmailStage {
         {
             try
             {
+                Thread.sleep(500);
+
                 String personalBody = draft.getBody()
                         .replace("{firstName}", contact.getFirstName())
                         .replace("{companyName}", contact.getCompanyDomain())
@@ -68,6 +70,12 @@ public class GmailStage {
                 System.out.println("Sent to: " + contact.getEmail());
                 historyManager.recordContacted(contact.getEmail());
                 sentCount++;
+            }
+            catch (InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+                System.out.println("Send interrupted — stopping");
+                break;
             }
             catch (HttpClientErrorException e)
             {

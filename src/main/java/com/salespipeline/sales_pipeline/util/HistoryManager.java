@@ -21,17 +21,21 @@ public class HistoryManager {
     public List<Contact> filterOutAlreadyContacted(List<Contact> contacts) {
         Set<String> history = loadHistory();
         return contacts.stream()
-                .filter(c -> !history.contains(c.getEmail()))
+                .filter(c -> c.getEmail() != null && !history.contains(c.getEmail().toLowerCase()))
                 .collect(Collectors.toList());
     }
 
     public void recordContacted(String email) {
+        if (email == null) {
+            return;
+        }
+
         try {
             Path path = Paths.get(HISTORY_FILE);
             if (!Files.exists(path)) {
                 Files.createFile(path);
             }
-            Files.writeString(path, email + System.lineSeparator(), StandardOpenOption.APPEND);
+            Files.writeString(path, email.toLowerCase() + System.lineSeparator(), StandardOpenOption.APPEND);
         } catch (IOException e) {
             System.err.println("Warning: Failed to save to history: " + e.getMessage());
         }
@@ -41,7 +45,9 @@ public class HistoryManager {
         try {
             Path path = Paths.get(HISTORY_FILE);
             if (Files.exists(path)) {
-                return new HashSet<>(Files.readAllLines(path));
+                return Files.readAllLines(path).stream()
+                        .map(String::toLowerCase)
+                        .collect(Collectors.toCollection(HashSet::new));
             }
         } catch (IOException e) {
             System.err.println("Warning: Failed to read history: " + e.getMessage());
