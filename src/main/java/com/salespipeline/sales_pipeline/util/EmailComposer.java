@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.SQLOutput;
 import java.util.Arrays;
 import java.io.BufferedReader;
 
@@ -18,7 +17,6 @@ public class EmailComposer {
 
     private static final String TEMPLATE_FILE = "email-template.txt";
 
-    //Changed Scanner to BufferedReader
     public EmailDraft getEmailDraft(BufferedReader reader) throws IOException {
         Path path = Path.of(TEMPLATE_FILE);
 
@@ -32,12 +30,13 @@ public class EmailComposer {
         System.out.println("3. Edit subject line only");
         System.out.print("Choose (1/2/3): ");
 
-        String choice = reader.readLine();   // readLine() not nextLine()
+        String choice = reader.readLine();
 
-        if(choice == null){
+        if (choice == null) {
             System.out.println("No input detected - loading template automatically");
             return loadFromFile(path);
         }
+
         choice = choice.trim();
         return switch (choice) {
             case "2" -> writeNewMessage(reader, path);
@@ -57,12 +56,20 @@ public class EmailComposer {
     private EmailDraft writeNewMessage(BufferedReader reader, Path path)
             throws IOException {
         System.out.print("\nSubject: ");
-        String subject = reader.readLine().trim();
+        String subjectLine = reader.readLine();
+
+        if (subjectLine == null) {
+            System.out.println("No input detected - loading template automatically");
+            return loadFromFile(path);
+        }
+
+        String subject = subjectLine.trim();
 
         System.out.println("Body (type END on a new line when done):");
         StringBuilder body = new StringBuilder();
         String line;
-        while (!(line = reader.readLine()).equals("END")) {
+
+        while ((line = reader.readLine()) != null && !line.equals("END")) {
             body.append(line).append("\n");
         }
 
@@ -77,7 +84,14 @@ public class EmailComposer {
             throws IOException {
         String content = Files.readString(path);
         System.out.print("\nNew Subject: ");
-        String newSubject = reader.readLine().trim();
+        String newSubjectLine = reader.readLine();
+
+        if (newSubjectLine == null) {
+            System.out.println("No input detected - keeping existing subject");
+            return loadFromFile(path);
+        }
+
+        String newSubject = newSubjectLine.trim();
         String body = extractBody(content);
         System.out.println("Subject updated, body kept from template");
         return new EmailDraft(newSubject, body);

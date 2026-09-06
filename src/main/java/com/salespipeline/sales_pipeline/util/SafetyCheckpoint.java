@@ -30,9 +30,9 @@ public class SafetyCheckpoint {
         System.out.println("About to send " + contacts.size()
                 + " emails. Proceed? (y/n): ");
 
-        String input = reader.readLine().trim();   //readLine()
+        String input = reader.readLine();
 
-        if (!input.equalsIgnoreCase("y")) {
+        if (input == null || !input.trim().equalsIgnoreCase("y")) {
             System.out.println("Aborted. No emails sent.");
             System.exit(0);
         }
